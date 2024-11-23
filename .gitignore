@@ -1,0 +1,8 @@
+*__pycache__
+huggingface
+*ipynb_checkpoints
+dist
+build
+*.egg-info
+*.whl
+*Untitled*.ipynb

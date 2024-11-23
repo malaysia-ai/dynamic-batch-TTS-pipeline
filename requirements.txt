@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+huggingface-hub
+torch
+torchaudio
+python-multipart
+sse_starlette
+transformers
+git+https://github.com/mesolitica/transformers-openai-api.git@5ddcde49b47ea2026090d8ab38b75f013cc516b6
