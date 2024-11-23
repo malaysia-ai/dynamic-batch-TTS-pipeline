@@ -50,12 +50,12 @@ def parse_arguments():
     )
     parser.add_argument(
         '--dynamic-batching-speech-enhancement-batch-size', type=int,
-        default=int(os.environ.get('DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE', '16')),
+        default=int(os.environ.get('DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE', '5')),
         help='maximum of batch size for speech enhancement during dynamic batching (default: %(default)s, env: DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE)'
     )
     parser.add_argument(
         '--dynamic-batching-ts-batch-size', type=int,
-        default=int(os.environ.get('DYNAMIC_BATCHING_TTS_BATCH_SIZE', '16')),
+        default=int(os.environ.get('DYNAMIC_BATCHING_TTS_BATCH_SIZE', '5')),
         help='maximum of batch size for TTS during dynamic batching (default: %(default)s, env: DYNAMIC_BATCHING_TTS_BATCH_SIZE)'
     )
     parser.add_argument(

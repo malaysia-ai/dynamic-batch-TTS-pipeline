@@ -39,9 +39,8 @@ python3 -m dynamicbatch_ttspipeline.main --help
 
 ```
 usage: main.py [-h] [--host HOST] [--port PORT] [--loglevel LOGLEVEL] [--reload RELOAD]
-               [--enable-speech-enhancement ENABLE_SPEECH_ENHANCEMENT]
-               [--model-speech-enhancement MODEL_SPEECH_ENHANCEMENT] [--enable-tts ENABLE_TTS] [--model-tts MODEL_TTS]
-               [--dynamic-batching-microsleep DYNAMIC_BATCHING_MICROSLEEP]
+               [--enable-speech-enhancement ENABLE_SPEECH_ENHANCEMENT] [--model-speech-enhancement MODEL_SPEECH_ENHANCEMENT]
+               [--enable-tts ENABLE_TTS] [--model-tts MODEL_TTS] [--dynamic-batching-microsleep DYNAMIC_BATCHING_MICROSLEEP]
                [--dynamic-batching-speech-enhancement-batch-size DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE]
                [--dynamic-batching-ts-batch-size DYNAMIC_BATCHING_TS_BATCH_SIZE] [--accelerator-type ACCELERATOR_TYPE]
                [--max-concurrent MAX_CONCURRENT]
@@ -66,13 +65,33 @@ options:
                         microsleep to group dynamic batching, 1 / 1e-4 = 10k steps for second (default: 0.0001, env:
                         DYNAMIC_BATCHING_MICROSLEEP)
   --dynamic-batching-speech-enhancement-batch-size DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE
-                        maximum of batch size for speech enhancement during dynamic batching (default: 16, env:
+                        maximum of batch size for speech enhancement during dynamic batching (default: 5, env:
                         DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE)
   --dynamic-batching-ts-batch-size DYNAMIC_BATCHING_TS_BATCH_SIZE
-                        maximum of batch size for TTS during dynamic batching (default: 16, env:
-                        DYNAMIC_BATCHING_TTS_BATCH_SIZE)
+                        maximum of batch size for TTS during dynamic batching (default: 5, env: DYNAMIC_BATCHING_TTS_BATCH_SIZE)
   --accelerator-type ACCELERATOR_TYPE
                         Accelerator type (default: cuda, env: ACCELERATOR_TYPE)
   --max-concurrent MAX_CONCURRENT
                         Maximum concurrent requests (default: 100, env: MAX_CONCURRENT)
 ```
+
+**We support both args and OS environment**.
+
+### Run
+
+```
+python3 -m dynamicbatch_ttspipeline.main \
+--host 0.0.0.0 --port 7088
+```
+
+#### Example document layout
+
+```bash
+curl -X 'POST' \
+  'http://localhost:7088/speech_enhancement' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'file=@stress-test/test.mp3;type=audio/mpeg'
+```
+
+Checkout [notebook/speech-enhancement.ipynb](notebook/speech-enhancement.ipynb).

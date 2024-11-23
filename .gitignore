@@ -6,3 +6,6 @@ build
 *.egg-info
 *.whl
 *Untitled*.ipynb
+*.pt
+*.yaml
+*latest
