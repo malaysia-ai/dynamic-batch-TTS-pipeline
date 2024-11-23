@@ -2,7 +2,7 @@
 
 Dynamic batching for Speech Enhancement and diffusion based TTS.
 
-1. Dynamic batching for SOTA Speech Enhancement and diffuion based TTS, suitable to serve better concurrency.
+1. Dynamic batching for SOTA Speech Enhancement and diffusion based TTS, suitable to serve better concurrency.
 2. Can serve user defined max concurrency.
 
 ## Available models
