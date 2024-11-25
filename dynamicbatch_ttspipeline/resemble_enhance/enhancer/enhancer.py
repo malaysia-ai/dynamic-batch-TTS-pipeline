@@ -133,9 +133,6 @@ class Enhancer(nn.Module):
         assert x.dim() == 2, f"Expected (b t), got {x.size()}"
         assert y is None or y.dim() == 2, f"Expected (b t), got {y.size()}"
 
-        if self.hp.lcfm_training_mode == "cfm":
-            self.normalizer.eval()
-
         x = _normalize_wav(x)
         y = _maybe(_normalize_wav)(y)
         z = _maybe(_normalize_wav)(z)

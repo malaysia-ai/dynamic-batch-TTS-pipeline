@@ -26,21 +26,18 @@ chunk_length = None
 overlap_length = None
 hop_length = None
 
-device = 'cpu'
-if args.accelerator_type == 'cuda':
-    if not torch.cuda.is_available():
-        logging.warning('CUDA is not available, fallback to CPU.')
-    else:
-        device = 'cuda'
-dtype = torch.float32
+device = args.device
 
+# currently SFFT not yet support bfloat16, so we hard coded float32
+torch_dtype = torch.float32
 
-@torch.no_grad()
 def load_model():
     global model, hp, sr, chunk_length, overlap_length, hop_length
-    model = load_enhancer(run_dir = None, device = device, dtype = dtype)
+
+    model = load_enhancer(run_dir = None, device = device, dtype = torch_dtype)
     model.configurate_(nfe=64, solver='midpoint', lambd=0.9, tau=0.5)
     remove_weight_norm_recursively(model)
+    model.normalizer.eval()
     hp = model.hp
     sr = hp.wav_rate
     chunk_seconds = 10.0
@@ -48,6 +45,36 @@ def load_model():
     chunk_length = int(sr * chunk_seconds)
     overlap_length = int(sr * overlap_seconds)
     hop_length = chunk_length - overlap_length
+
+    if args.torch_compile:
+        logging.info('enabling torch compile for speech enhancement')
+        model.lcfm.ae.forward = torch.compile(
+            model.lcfm.ae.forward,
+        )
+        model.lcfm.ae.forward = torch.compile(
+            model.lcfm.ae.forward,
+        )
+        model.lcfm.cfm.emb.forward = torch.compile(
+            model.lcfm.cfm.emb.forward,
+        )
+        model.lcfm.cfm.net.forward = torch.compile(
+            model.lcfm.cfm.net.forward,
+        )
+        model.denoiser.forward = torch.compile(
+            model.denoiser.forward,
+        )
+        model.vocoder.forward = torch.compile(
+            model.vocoder.forward,
+        )
+        """
+        torch.Size([2, 441441])
+        """
+        with torch.no_grad():
+            for i in range(1, args.dynamic_batching_speech_enhancement_batch_size + 1):
+                audios = torch.zeros(i, chunk_length + npad).to(device)
+                logging.info(f'{i}, warming up speech enhancement, {audios.shape}')
+                hwav = model(audios)
+                del audios, hwav
 
 
 step_queue = asyncio.Queue()
@@ -83,9 +110,13 @@ async def step():
                     lengths.append(chunk.shape[-1])
                     abs_max = chunk.abs().max().clamp(min=1e-7)
                     abs_maxes.append(abs_max)
-                    chunk = chunk.type(dtype).to(device)
+                    chunk = chunk.type(torch_dtype).to(device)
                     chunk = chunk / abs_max
-                    chunk = F.pad(chunk, (0, npad))
+                    if args.torch_compile:
+                        n = (chunk_length + npad) - chunk.shape[-1]
+                    else:
+                        n = npad
+                    chunk = F.pad(chunk, (0, n))
                     audios.append(chunk)
                 
                 audios = pad_sequence(audios, batch_first=True)

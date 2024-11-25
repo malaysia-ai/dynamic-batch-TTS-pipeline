@@ -102,7 +102,6 @@ class KernelPredictor(torch.nn.Module):
         batch, _, cond_length = c.shape
         c = self.input_conv(c)
         for residual_conv in self.residual_convs:
-            residual_conv.to(c.device)
             c = c + residual_conv(c)
         k = self.kernel_conv(c)
         b = self.bias_conv(c)
@@ -146,7 +145,7 @@ class LVCBlock(torch.nn.Module):
 
         self.add_extra_noise = add_extra_noise
 
-        self.cond_hop_length = cond_hop_length
+        self.cond_hop_length = int(cond_hop_length)
         self.conv_layers = len(dilations)
         self.conv_kernel_size = conv_kernel_size
 
@@ -254,10 +253,6 @@ class LVCBlock(torch.nn.Module):
         """
         batch, _, in_length = x.shape
         batch, _, out_channels, kernel_size, kernel_length = kernel.shape
-
-        assert in_length == (
-            kernel_length * hop_size
-        ), f"length of (x, kernel) is not matched, {in_length} != {kernel_length} * {hop_size}"
 
         padding = dilation * int((kernel_size - 1) / 2)
         x = F.pad(x, (padding, padding), "constant", 0)  # (batch, in_channels, in_length + 2*padding)

@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import torch
 
 
 def parse_arguments():
@@ -24,6 +25,10 @@ def parse_arguments():
         help='Enable hot loading (default: %(default)s, env: RELOAD)'
     )
     parser.add_argument(
+        '--torch-dtype', default=os.environ.get('TORCH_DTYPE', 'bfloat16'),
+        help='Torch data type (default: %(default)s, env: TORCH_DTYPE)'
+    )
+    parser.add_argument(
         '--enable-speech-enhancement', type=lambda x: x.lower() == 'true',
         default=os.environ.get('ENABLE_SPEECH_ENHANCEMENT', 'true').lower() == 'true',
         help='Enable document layout detection (default: %(default)s, env: ENABLE_SPEECH_ENHANCEMENT)'
@@ -36,7 +41,7 @@ def parse_arguments():
     parser.add_argument(
         '--enable-tts', type=lambda x: x.lower() == 'true',
         default=os.environ.get('ENABLE_TTS', 'true').lower() == 'true',
-        help='Enable OCR (default: %(default)s, env: ENABLE_tts)'
+        help='Enable OCR (default: %(default)s, env: ENABLE_TTS)'
     )
     parser.add_argument(
         '--model-tts',
@@ -68,6 +73,11 @@ def parse_arguments():
         default=int(os.environ.get('MAX_CONCURRENT', '100')),
         help='Maximum concurrent requests (default: %(default)s, env: MAX_CONCURRENT)'
     )
+    parser.add_argument(
+        '--torch-compile', type=lambda x: x.lower() == 'true',
+        default=os.environ.get('TORCH_COMPILE', 'true').lower() == 'false',
+        help='Torch compile necessary forwards, can speed up at least 1.5X (default: %(default)s, env: TORCH_COMPILE)'
+    )
 
     args = parser.parse_args()
 
@@ -77,6 +87,14 @@ def parse_arguments():
     if args.model_tts not in {'f5-tts'}:
         raise ValueError('Currently TTS, `--model-tts` or `MODEL_TTS` environment variable, only support https://github.com/SWivid/F5-TTS')
 
+    device = 'cpu'
+    if args.accelerator_type == 'cuda':
+        if not torch.cuda.is_available():
+            logging.warning('CUDA is not available, fallback to CPU.')
+        else:
+            device = 'cuda'
+
+    args.device = device
     return args
 
 
