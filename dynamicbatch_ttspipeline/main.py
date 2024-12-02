@@ -8,6 +8,12 @@ from dynamicbatch_ttspipeline.speech_enhancement import (
     predict as speech_enhancement_predict,
     step as speech_enhancement_step,
 )
+from dynamicbatch_ttspipeline.tts import (
+    load_model as tts_load_model, 
+    predict as tts_predict,
+    asr as tts_asr,
+    step as tts_step,
+)
 import uvicorn
 import asyncio
 import logging
@@ -21,11 +27,12 @@ if args.enable_speech_enhancement:
     @app.post('/speech_enhancement')
     async def speech_enhancement(
         file: bytes = File(),
+        request: Request = None,
     ):
         """
         Speech enhancement for audio file. Will return base64 WAV format.
         """
-        r = await speech_enhancement_predict(file)
+        r = await speech_enhancement_predict(file=file, request=request)
         return r
 
     speech_enhancement_load_model()
@@ -39,6 +46,56 @@ if args.enable_speech_enhancement:
         app.state.background_speech_enhancement_step.cancel()
         try:
             await app.state.background_speech_enhancement_step
+        except asyncio.CancelledError:
+            pass
+
+if args.enable_tts:
+    logging.info('enabling TTS')
+
+    @app.post('/tts')
+    async def tts(
+        text: str,
+        audio_input: bytes = File(),
+        transcription_input: str = None,
+        remove_silent_input: bool = False,
+        remove_silent_output: bool = False,
+        target_rms: float = 0.1,
+        cross_fade_duration: float = 0.15,
+        speed: float = 1,
+        request: Request = None,
+    ):
+        """
+        Text to Speech with voice cloning, only use text normalization natively provided by the model. 
+        Will return base64 WAV format.
+        """
+        r = await tts_predict(
+            text=text,
+            audio_input=audio_input,
+            transcription_input=transcription_input,
+            remove_silent_input=remove_silent_input,
+            remove_silent_output=remove_silent_output,
+            target_rms=target_rms,
+            cross_fade_duration=cross_fade_duration,
+            speed=speed,
+            request=request
+        )
+        return r
+    
+    @app.on_event("startup")
+    async def startup_event():
+        app.state.background_tts_asr = asyncio.create_task(tts_asr())
+        app.state.background_tts_step = asyncio.create_task(tts_step())
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        app.state.background_tts_asr.cancel()
+        app.state.background_tts_step.cancel()
+        try:
+            await app.state.background_tts_asr
+        except asyncio.CancelledError:
+            pass
+        try:
+            await app.state.background_tts_step
         except asyncio.CancelledError:
             pass
 

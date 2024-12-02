@@ -49,6 +49,11 @@ def parse_arguments():
         help='Model type (default: %(default)s, env: MODEL_TTS)'
     )
     parser.add_argument(
+        '--model-tts-name',
+        default=os.environ.get('MODEL_TTS_NAME', 'SWivid/F5-TTS'),
+        help='Model TTS name (default: %(default)s, env: MODEL_TTS_NAME)'
+    )
+    parser.add_argument(
         '--dynamic-batching-microsleep', type=float,
         default=float(os.environ.get('DYNAMIC_BATCHING_MICROSLEEP', '1e-4')),
         help='microsleep to group dynamic batching, 1 / 1e-4 = 10k steps for second (default: %(default)s, env: DYNAMIC_BATCHING_MICROSLEEP)'
@@ -85,7 +90,7 @@ def parse_arguments():
         raise ValueError('Currently Speech Enhancement, `--model-speech-enhancement` or `MODEL_SPEECH_ENHANCEMENT` environment variable, only support https://github.com/resemble-ai/resemble-enhance')
 
     if args.model_tts not in {'f5-tts'}:
-        raise ValueError('Currently TTS, `--model-tts` or `MODEL_TTS` environment variable, only support https://github.com/SWivid/F5-TTS')
+        raise ValueError('Currently TTS, `--model-tts` or `MODEL_TTS` environment variable, only support `f5-tts`')
 
     device = 'cpu'
     if args.accelerator_type == 'cuda':

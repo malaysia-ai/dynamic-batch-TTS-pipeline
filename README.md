@@ -14,6 +14,7 @@ Dynamic batching for Speech Enhancement and diffusion based TTS.
 ### TTS
 
 1. https://github.com/SWivid/F5-TTS
+2. https://github.com/jaywalnut310/vits
 
 ## how to install
 

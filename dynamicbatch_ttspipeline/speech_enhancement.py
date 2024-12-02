@@ -27,7 +27,6 @@ overlap_length = None
 hop_length = None
 
 device = args.device
-
 # currently SFFT not yet support bfloat16, so we hard coded float32
 torch_dtype = torch.float32
 
@@ -136,7 +135,7 @@ async def step():
 
 async def predict(
     file,
-    request = None,
+    request=None,
 ):
     dwav, sr_ = torchaudio.load(file)
     dwav = dwav.mean(dim=0)
