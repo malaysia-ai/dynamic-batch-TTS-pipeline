@@ -7,6 +7,8 @@ import asyncio
 import time
 import logging
 import malaya_speech
+import numpy as np
+import librosa
 from malaya_speech import Pipeline
 from transformers import pipeline
 from dynamicbatch_ttspipeline.f5_tts.load import (
@@ -41,7 +43,11 @@ torch_dtype = getattr(torch, args.torch_dtype)
 
 def load_model():
     global model, vocoder, asr_pipe
-    model = load_f5_tts(args.model_tts_name, device = device)
+    """
+    1. must use float16
+    2. if use bfloat16, default sway_sampling_coef which is `-1` doesnt generate a correct `t` for `odeint(fn, y0, t, **self.odeint_kwargs)`
+    """
+    model = load_f5_tts(args.model_tts_name, device = device, dtype = torch.float16)
     vocoder = load_vocoder(device = device)
     asr_pipe = pipeline(
         "automatic-speech-recognition",
@@ -167,18 +173,24 @@ async def predict(
         future = asyncio.Future()
         await asr_queue.put((future, dwav))
         transcription_input = await future
+        transcription_input = transcription_input[0]
     
     audio = dwav
     ref_text = transcription_input
-    rms = torch.sqrt(torch.mean(torch.square(audio)))
+
+    rms = np.sqrt(np.mean(np.square(audio)))
     if rms < target_rms:
         audio = audio * target_rms / rms
     
     max_chars = int(len(ref_text.encode("utf-8")) / (audio.shape[-1] / sr_) * (25 - audio.shape[-1] / sr_))
-    gen_text_batches = chunk_text(gen_text, max_chars=max_chars)
+    gen_text_batches = chunk_text(text, max_chars=max_chars)
 
     if sr_ != target_sample_rate:
-        resampler = torchaudio.transforms.Resample(sr_, target_sample_rate)
-        audio = resampler(audio)
+        audio = librosa.resample(audio, orig_sr = sr_, target_sr = target_sample_rate)
+    
+    audio = torch.Tensor(audio[None,:])
+    audio = audio.to(device)
+    
+    
     
 

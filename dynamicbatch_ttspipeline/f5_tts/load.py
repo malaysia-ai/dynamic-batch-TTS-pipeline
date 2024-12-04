@@ -71,9 +71,11 @@ def load_f5_tts(
     model_name = 'SWivid/F5-TTS', 
     use_ema = True,
     device = 'cuda',
+    dtype = torch.float16,
 ):
     folder = snapshot_download(repo_id=model_name)
     checkpoints = glob(os.path.join(folder, '**', '*.pt'), recursive = True)
+    checkpoints.extend(glob(os.path.join(folder, '**', '*.pth'), recursive = True))
     checkpoints = [f for f in checkpoints if '_bigvgan' not in f]
     if not len(checkpoints):
         raise ValueError('Cannot found PyTorch checkpoint in the model name.')
@@ -101,7 +103,7 @@ def load_f5_tts(
         ),
         vocab_char_map=vocab_char_map,
     ).to(device)
-    model = load_checkpoint(model, ckpt_path, device, dtype=None, use_ema=use_ema)
+    model = load_checkpoint(model, ckpt_path, device, dtype=dtype, use_ema=use_ema)
     return model
 
     
