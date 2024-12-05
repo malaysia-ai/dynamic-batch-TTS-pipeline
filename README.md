@@ -41,6 +41,7 @@ python3 -m dynamicbatch_ttspipeline.main --help
 usage: main.py [-h] [--host HOST] [--port PORT] [--loglevel LOGLEVEL] [--reload RELOAD] [--torch-dtype TORCH_DTYPE]
                [--enable-speech-enhancement ENABLE_SPEECH_ENHANCEMENT]
                [--model-speech-enhancement MODEL_SPEECH_ENHANCEMENT] [--enable-tts ENABLE_TTS] [--model-tts MODEL_TTS]
+               [--model-tts-name MODEL_TTS_NAME] [--model-vocoder-name MODEL_VOCODER_NAME]
                [--dynamic-batching-microsleep DYNAMIC_BATCHING_MICROSLEEP]
                [--dynamic-batching-speech-enhancement-batch-size DYNAMIC_BATCHING_SPEECH_ENHANCEMENT_BATCH_SIZE]
                [--dynamic-batching-ts-batch-size DYNAMIC_BATCHING_TS_BATCH_SIZE] [--accelerator-type ACCELERATOR_TYPE]
@@ -64,6 +65,10 @@ options:
                         Enable OCR (default: True, env: ENABLE_TTS)
   --model-tts MODEL_TTS
                         Model type (default: f5-tts, env: MODEL_TTS)
+  --model-tts-name MODEL_TTS_NAME
+                        Model TTS name (default: SWivid/F5-TTS, env: MODEL_TTS_NAME)
+  --model-vocoder-name MODEL_VOCODER_NAME
+                        Model Vocoder name (default: charactr/vocos-mel-24khz, env: MODEL_VOCODER_NAME)
   --dynamic-batching-microsleep DYNAMIC_BATCHING_MICROSLEEP
                         microsleep to group dynamic batching, 1 / 1e-4 = 10k steps for second (default: 0.0001, env:
                         DYNAMIC_BATCHING_MICROSLEEP)
