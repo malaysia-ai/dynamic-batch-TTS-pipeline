@@ -1,45 +1,36 @@
 from dynamicbatch_ttspipeline.env import args
-import torch
-import base64
-import io
-import soundfile as sf
-import asyncio
-import time
-import logging
-import malaya_speech
-import numpy as np
-import librosa
-from malaya_speech import Pipeline
-from transformers import pipeline
 from dynamicbatch_ttspipeline.f5_tts.load import (
     load_f5_tts,
     load_vocoder,
     target_sample_rate,
+    hop_length,
+    nfe_step,
+    cfg_strength,
+    sway_sampling_coef,
 )
 from dynamicbatch_ttspipeline.f5_tts.utils import (
     chunk_text,
     convert_char_to_pinyin,
 )
+from malaya_speech import Pipeline
+from transformers import pipeline
+import numpy as np
+import torch.nn.functional as F
+import malaya_speech
+import librosa
+import torchaudio
+import torch
+import asyncio
+import time
+import logging
 
-p = Pipeline()
 vad = malaya_speech.vad.webrtc()
-pipeline_left = (
-    p.map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000)
-)
-pipeline_right = (
-    p.map(malaya_speech.resample, old_samplerate = sr, new_samplerate = 16000)
-    .map(malaya_speech.astype.float_to_int)
-    .map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000,
-         append_ending_trail = False)
-    .foreach_map(vad)
-)
-pipeline_left.foreach_zip(pipeline_right).map(malaya_speech.combine.without_silent, silent_trail = 1000)
-
 model = None
 vocoder = None
 asr_pipe = None
 device = args.device
 torch_dtype = getattr(torch, args.torch_dtype)
+sr_whisper = 16000
 
 def load_model():
     global model, vocoder, asr_pipe
@@ -48,7 +39,7 @@ def load_model():
     2. if use bfloat16, default sway_sampling_coef which is `-1` doesnt generate a correct `t` for `odeint(fn, y0, t, **self.odeint_kwargs)`
     """
     model = load_f5_tts(args.model_tts_name, device = device, dtype = torch.float16)
-    vocoder = load_vocoder(device = device)
+    vocoder = load_vocoder(args.model_vocoder_name, device = device)
     asr_pipe = pipeline(
         "automatic-speech-recognition",
         model="openai/whisper-large-v3-turbo",
@@ -136,6 +127,55 @@ async def step():
                 continue
 
             futures = [batch[i][0] for i in range(len(batch))]
+            audios = [batch[i][1] for i in range(len(batch))]
+            gen_texts = [batch[i][2] for i in range(len(batch))]
+            ref_texts = [batch[i][3] for i in range(len(batch))]
+            speeds = [batch[i][4] for i in range(len(batch))]
+
+            audios = [torch.Tensor(audios[i]).to('cuda') for i in range(len(audios))]
+            audios_length = [audios[i].shape[0] for i in range(len(audios))]
+            maxlen_audios_length = max(audios_length)
+            audios = torch.stack([F.pad(audios[i], (maxlen_audios_length - audios_length[i], 0)) for i in range(len(audios))], 0)
+
+            ref_audio_len = audios.shape[-1] // hop_length
+            final_text_lists, durations, after_durations = [], [], []
+            for i in range(len(gen_texts)):
+                ref_text = ref_texts[i]
+                gen_text = gen_texts[i]
+                speed = speeds[i]
+                text_list = [ref_text + gen_text]
+                final_text_list = convert_char_to_pinyin(text_list)
+                ref_text_len = len(ref_text.encode("utf-8"))
+                gen_text_len = len(gen_text.encode("utf-8"))
+                after_duration = int(ref_audio_len / ref_text_len * gen_text_len / speed)
+                final_text_lists.append(final_text_list[0])
+                durations.append(ref_audio_len + after_duration)
+                after_durations.append(after_duration)
+            
+            lengths = [len(l) for l in final_text_lists]
+            maxlen = max(lengths)
+            batch_final_text_lists = []
+            for t in final_text_lists:
+                batch_final_text_lists.append(t + ['.'] * (maxlen - len(t)))
+
+            with torch.no_grad():
+                generated, _ = model.sample(
+                    cond=audios,
+                    text=batch_final_text_lists,
+                    duration=torch.Tensor(durations).to(device).type(torch.long),
+                    steps=nfe_step,
+                    cfg_strength=cfg_strength,
+                    sway_sampling_coef=sway_sampling_coef,
+                )
+                generated = generated.to(torch.float32)
+                generated = generated[:, ref_audio_len:, :]
+                generated_mel_spec = generated.permute(0, 2, 1)
+                generated_wave = vocoder.decode(generated_mel_spec)
+                generated_wave = generated_wave.cpu().numpy()
+            
+            actual_after_durations = [d * hop_length for d in after_durations]
+            for i in range(len(actual_after_durations)):
+                futures[i].set_result((generated_wave[i, :actual_after_durations[i]],))
         
         except Exception as e:
             logging.error(e)
@@ -160,23 +200,49 @@ async def predict(
 ):
     dwav, sr_ = torchaudio.load(audio_input)
     dwav = dwav.mean(dim=0).numpy()
+
+    p = Pipeline()
+    pipeline_left = (
+        p.map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000)
+    )
+    pipeline_right = (
+        p.map(malaya_speech.resample, old_samplerate = sr_, new_samplerate = 16000)
+        .map(malaya_speech.astype.float_to_int)
+        .map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000,
+            append_ending_trail = False)
+        .foreach_map(vad)
+    )
+    pipeline_left.foreach_zip(pipeline_right).map(malaya_speech.combine.without_silent, silent_trail = 1000)
+
     if remove_silent_input:
         results = p(dwav)
         dwav = results['without_silent']
     
     if len(dwav / sr_) > 20:
         logging.warning('audio input is longer than 20 seconds, clipping short.')
-        dwav = np.concatenate([dwav[:20 * sr], np.zeros(int(0.05 * sr),)])
+        dwav = np.concatenate([dwav[:20 * sr_], np.zeros(int(0.05 * sr_),)])
     
-    if transcription_input is None:
+    if transcription_input is None or len(transcription_input) < 1:
         logging.info('transcription input is empty, transcribing using whisper.')
+        if sr_ != sr_whisper:
+            dwav_ = librosa.resample(dwav, orig_sr = sr_, target_sr = sr_whisper)
+        else:
+            dwav_ = dwav
         future = asyncio.Future()
-        await asr_queue.put((future, dwav))
+        await asr_queue.put((future, dwav_))
         transcription_input = await future
         transcription_input = transcription_input[0]
+
+    logging.info(f'transcription_input, {transcription_input}')
     
     audio = dwav
     ref_text = transcription_input
+
+    if not ref_text.endswith(". ") and not ref_text.endswith("。"):
+        if ref_text.endswith("."):
+            ref_text += " "
+        else:
+            ref_text += ". "
 
     rms = np.sqrt(np.mean(np.square(audio)))
     if rms < target_rms:
@@ -188,9 +254,34 @@ async def predict(
     if sr_ != target_sample_rate:
         audio = librosa.resample(audio, orig_sr = sr_, target_sr = target_sample_rate)
     
-    audio = torch.Tensor(audio[None,:])
-    audio = audio.to(device)
+    futures = []
+    before = time.time()
+    for t in gen_text_batches:
+        future = asyncio.Future()
+        await step_queue.put((future, audio, t, ref_text, speed))
+        futures.append(future)
     
+    results = await asyncio.gather(*futures)
+    after = time.time()
+    results = [r[0] for r in results]
+    results = np.concatenate(results)
+
+    if rms < target_rms:
+        results = results * rms / target_rms
+
+    if remove_silent_output:
+        results = p(results)
+        results = results['without_silent']
+    
+    stats = {
+        'total_length': results.shape[-1] / target_sample_rate,
+        'seconds_per_second': (results.shape[-1] / target_sample_rate) / (after - before),
+    }
+    return {
+        'audio': results,
+        'sr': target_sample_rate,
+        'stats': stats,
+    }
     
     
 

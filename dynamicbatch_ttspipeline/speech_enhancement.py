@@ -1,19 +1,17 @@
-import torchaudio
-import torch
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from torch.nn.utils.parametrize import remove_parametrizations
-from torchaudio.functional import resample
-from torchaudio.transforms import MelSpectrogram
+from dynamicbatch_ttspipeline.env import args
 from dynamicbatch_ttspipeline.resemble_enhance.enhancer.inference import load_enhancer
 from dynamicbatch_ttspipeline.resemble_enhance.inference import (
     remove_weight_norm_recursively,
     merge_chunks,
 )
-from dynamicbatch_ttspipeline.env import args
-import base64
-import io
-import soundfile as sf
+from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.parametrize import remove_parametrizations
+from torchaudio.functional import resample
+from torchaudio.transforms import MelSpectrogram
+
+import torchaudio
+import torch
+import torch.nn.functional as F
 import asyncio
 import time
 import logging
@@ -160,17 +158,14 @@ async def predict(
     after = time.time()
     results = [r[0] for r in results]
     hwav = merge_chunks(results, chunk_length, hop_length, sr=sr, length=dwav.shape[-1])
-    buffer = io.BytesIO()
-    sf.write(buffer, hwav, samplerate=sr, format='WAV')
-    buffer.seek(0)
-    audio_binary = buffer.read()
-    audio_base64 = base64.b64encode(audio_binary).decode('utf-8')
+    
     stats = {
         'total_length': dwav.shape[-1] / sr,
         'seconds_per_second': (dwav.shape[-1] / sr) / (after - before),
     }
     return {
-        'audio': audio_base64,
+        'audio': hwav,
+        'sr': sr,
         'stats': stats,
     }
 

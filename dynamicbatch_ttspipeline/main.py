@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi import File, Form, UploadFile
 from fastapi import HTTPException
-from dynamicbatch_ttspipeline.env import args
+from fastapi.responses import FileResponse
 from transformers_openai.middleware import InsertMiddleware
+from dynamicbatch_ttspipeline.env import args
+from dynamicbatch_ttspipeline.function import return_type
 from dynamicbatch_ttspipeline.speech_enhancement import (
     load_model as speech_enhancement_load_model, 
     predict as speech_enhancement_predict,
@@ -27,13 +29,15 @@ if args.enable_speech_enhancement:
     @app.post('/speech_enhancement')
     async def speech_enhancement(
         file: bytes = File(),
+        file_response: bool = True,
+        response_format: str = 'mp3',
         request: Request = None,
     ):
         """
-        Speech enhancement for audio file. Will return base64 WAV format.
+        Speech enhancement for audio file. Support return as file or base64 string.
         """
         r = await speech_enhancement_predict(file=file, request=request)
-        return r
+        return return_type(file_response, response_format, r)
 
     speech_enhancement_load_model()
 
@@ -62,11 +66,13 @@ if args.enable_tts:
         target_rms: float = 0.1,
         cross_fade_duration: float = 0.15,
         speed: float = 1,
+        file_response: bool = True,
+        response_format: str = 'mp3',
         request: Request = None,
     ):
         """
         Text to Speech with voice cloning, only use text normalization natively provided by the model. 
-        Will return base64 WAV format.
+        Support return as file or base64 string.
         """
         r = await tts_predict(
             text=text,
@@ -77,9 +83,11 @@ if args.enable_tts:
             target_rms=target_rms,
             cross_fade_duration=cross_fade_duration,
             speed=speed,
-            request=request
+            request=request,
         )
-        return r
+        return return_type(file_response, response_format, r)
+    
+    tts_load_model()
     
     @app.on_event("startup")
     async def startup_event():

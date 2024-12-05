@@ -9,3 +9,4 @@ build
 *.pt
 *.yaml
 *latest
+f5-tts-batching.ipynb

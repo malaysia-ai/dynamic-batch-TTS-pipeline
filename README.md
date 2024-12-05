@@ -115,3 +115,15 @@ curl -X 'POST' \
 Checkout [notebook/speech-enhancement.ipynb](notebook/speech-enhancement.ipynb).
 
 Checkout the speed of torch compile [notebook/speech-enhancement-torch-compile.ipynb](notebook/speech-enhancement-torch-compile.ipynb).
+
+#### Example F5-TTS
+
+```bash
+curl -X 'POST' \
+  'http://localhost:7088/tts?text=I%20don%27t%20really%20care%20what%20you%20call%20me.%20I%27ve%20been%20a%20silent%20spectator%2C%20watching%20species%20evolve%2C%20empires%20rise%20and%20fall&remove_silent_input=false&remove_silent_output=false&target_rms=0.1&cross_fade_duration=0.15&speed=1&file_response=true&response_format=mp3' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'audio_input=@stress-test/seedtts_ref_en_1.wav;type=audio/wav' \
+  --output stress-test/output-f5-tts.mp3
+```
+

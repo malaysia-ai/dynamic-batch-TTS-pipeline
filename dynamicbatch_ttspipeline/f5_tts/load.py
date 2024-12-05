@@ -107,9 +107,8 @@ def load_f5_tts(
     return model
 
     
-def load_vocoder(vocoder_name="vocos", device='cuda'):
+def load_vocoder(repo_id = "charactr/vocos-mel-24khz", device='cuda'):
     logging.info("Download Vocos from huggingface charactr/vocos-mel-24khz")
-    repo_id = "charactr/vocos-mel-24khz"
     config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
     model_path = hf_hub_download(repo_id=repo_id, filename="pytorch_model.bin")
     vocoder = Vocos.from_hparams(config_path)

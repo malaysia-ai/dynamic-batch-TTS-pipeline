@@ -54,6 +54,11 @@ def parse_arguments():
         help='Model TTS name (default: %(default)s, env: MODEL_TTS_NAME)'
     )
     parser.add_argument(
+        '--model-vocoder-name',
+        default=os.environ.get('MODEL_VOCODER_NAME', 'charactr/vocos-mel-24khz'),
+        help='Model Vocoder name (default: %(default)s, env: MODEL_VOCODER_NAME)'
+    )
+    parser.add_argument(
         '--dynamic-batching-microsleep', type=float,
         default=float(os.environ.get('DYNAMIC_BATCHING_MICROSLEEP', '1e-4')),
         help='microsleep to group dynamic batching, 1 / 1e-4 = 10k steps for second (default: %(default)s, env: DYNAMIC_BATCHING_MICROSLEEP)'
