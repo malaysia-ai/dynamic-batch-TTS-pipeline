@@ -1,9 +1,12 @@
 # dynamic-batch-TTS-pipeline
 
-Dynamic batching for Speech Enhancement and diffusion based TTS.
+Dynamic batching for TTS Pipeline.
 
-1. Dynamic batching for SOTA Speech Enhancement and diffusion based TTS, suitable to serve better concurrency.
-2. Can serve user defined max concurrency.
+1. Dynamic batching, suitable to serve better concurrency.
+2. Dynamic batching for SOTA Speech Enhancement.
+3. Dynamic batching for SOTA diffusion based TTS.
+4. Dynamic batching for Speech Semantic Token.
+5. Torch compile, 1.5X speed!
 
 ## Available models
 
@@ -14,6 +17,10 @@ Dynamic batching for Speech Enhancement and diffusion based TTS.
 ### TTS
 
 1. https://github.com/SWivid/F5-TTS
+
+### Semantic token
+
+1. https://github.com/fishaudio/fish-speech/blob/main/tools/vqgan/extract_vq.py
 
 ## how to install
 
