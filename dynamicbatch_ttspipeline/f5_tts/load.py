@@ -1,4 +1,5 @@
 from huggingface_hub import snapshot_download, hf_hub_download
+from huggingface_hub import HfFileSystem
 from vocos.feature_extractors import EncodecFeatures
 from vocos import Vocos
 from glob import glob
@@ -6,7 +7,6 @@ from .cfm import CFM
 from .dit import DiT
 from .utils import get_tokenizer
 import torch
-import logging
 import os
 
 target_sample_rate = 24000
@@ -73,17 +73,14 @@ def load_f5_tts(
     device = 'cuda',
     dtype = torch.float16,
 ):
-    folder = snapshot_download(repo_id=model_name)
-    checkpoints = glob(os.path.join(folder, '**', '*.pt'), recursive = True)
-    checkpoints.extend(glob(os.path.join(folder, '**', '*.pth'), recursive = True))
-    checkpoints = [f for f in checkpoints if '_bigvgan' not in f]
-    if not len(checkpoints):
-        raise ValueError('Cannot found PyTorch checkpoint in the model name.')
-
-    ckpt_path = checkpoints[0]    
+    fs = HfFileSystem()
+    checkpoints = fs.glob(os.path.join(model_name, '**', '*.pt'))
+    checkpoints.extend(fs.glob(os.path.join(model_name, '**', '*.pth')))
+    checkpoints = [f for f in checkpoints if '_bigvgan' not in f and 'full-checkpoint' not in f]
+    ckpt_path = checkpoints[0].split(model_name, 1)[1][1:]
     vocab_file = os.path.join(os.path.split(ckpt_path)[0], 'vocab.txt')
-    if not os.path.exists(vocab_file):
-        raise ValueError(f'{vocab_file} is not exists.')
+    ckpt_path = hf_hub_download(model_name, ckpt_path)
+    vocab_file = hf_hub_download(model_name, vocab_file)
     
     tokenizer = "custom"
     vocab_char_map, vocab_size = get_tokenizer(vocab_file, tokenizer)
@@ -108,7 +105,6 @@ def load_f5_tts(
 
     
 def load_vocoder(repo_id = "charactr/vocos-mel-24khz", device='cuda'):
-    logging.info("Download Vocos from huggingface charactr/vocos-mel-24khz")
     config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
     model_path = hf_hub_download(repo_id=repo_id, filename="pytorch_model.bin")
     vocoder = Vocos.from_hparams(config_path)

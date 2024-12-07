@@ -141,3 +141,4 @@ curl -X 'POST' \
 
 https://github.com/user-attachments/assets/8f792cba-1e0f-40a2-9b6b-6f92cd88aa94
 
+Checkout [notebook/tts-fish-speech.ipynb](notebook/tts-fish-speech.ipynb).

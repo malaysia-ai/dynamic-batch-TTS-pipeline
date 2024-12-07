@@ -46,6 +46,7 @@ def load_model():
         torch_dtype=torch_dtype,
         device=device,
     )
+    convert_char_to_pinyin(['helo'])
     if args.torch_compile:
         logging.info('enabling torch compile for TTS')
         model.transformer.forward = torch.compile(
@@ -142,12 +143,13 @@ async def step():
             for i in range(len(gen_texts)):
                 ref_text = ref_texts[i]
                 gen_text = gen_texts[i]
+                dur = audios_length[i] // hop_length
                 speed = speeds[i]
                 text_list = [ref_text + gen_text]
                 final_text_list = convert_char_to_pinyin(text_list)
                 ref_text_len = len(ref_text.encode("utf-8"))
                 gen_text_len = len(gen_text.encode("utf-8"))
-                after_duration = int(ref_audio_len / ref_text_len * gen_text_len / speed)
+                after_duration = int(dur / ref_text_len * gen_text_len / speed)
                 final_text_lists.append(final_text_list[0])
                 durations.append(ref_audio_len + after_duration)
                 after_durations.append(after_duration)
@@ -191,39 +193,48 @@ async def predict(
     text,
     audio_input,
     transcription_input,
-    remove_silent_input,
-    remove_silent_output,
+    remove_silent_input=False,
+    remove_silent_input_threshold=0.1,
+    remove_silent_output=False,
+    remove_silent_output_threshold=0.1,
     target_rms=0.1,
     cross_fade_duration=0.15,
     speed=1,
     request=None,
 ):
+    if isinstance(request, dict):
+        uuid = request['uuid']
+    else:
+        uuid = request.scope['request']['uuid']
     dwav, sr_ = torchaudio.load(audio_input)
     dwav = dwav.mean(dim=0).numpy()
 
-    p = Pipeline()
-    pipeline_left = (
-        p.map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000)
-    )
-    pipeline_right = (
-        p.map(malaya_speech.resample, old_samplerate = sr_, new_samplerate = 16000)
-        .map(malaya_speech.astype.float_to_int)
-        .map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000,
-            append_ending_trail = False)
-        .foreach_map(vad)
-    )
-    pipeline_left.foreach_zip(pipeline_right).map(malaya_speech.combine.without_silent, silent_trail = 1000)
-
     if remove_silent_input:
+        p = Pipeline()
+        pipeline_left = (
+            p.map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000)
+        )
+        pipeline_right = (
+            p.map(malaya_speech.resample, old_samplerate = sr_, new_samplerate = 16000)
+            .map(malaya_speech.astype.float_to_int)
+            .map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000,
+                append_ending_trail = False)
+            .foreach_map(vad)
+        )
+        pipeline_left.foreach_zip(pipeline_right).map(
+            malaya_speech.combine.without_silent, 
+            threshold_to_stop = remove_silent_input_threshold,
+            silent_trail = 1000,
+        )
         results = p(dwav)
         dwav = results['without_silent']
     
-    if len(dwav / sr_) > 20:
-        logging.warning('audio input is longer than 20 seconds, clipping short.')
-        dwav = np.concatenate([dwav[:20 * sr_], np.zeros(int(0.05 * sr_),)])
+    if (len(dwav) / sr_) > 20:
+        logging.warning(f'{uuid} audio input is longer than 20 seconds, clipping short.')
+        dwav = np.concatenate([dwav[:int(20 * sr_)], np.zeros(int(0.05 * sr_),)])
     
     if transcription_input is None or len(transcription_input) < 1:
-        logging.info('transcription input is empty, transcribing using whisper.')
+        logging.info(f'{uuid} transcription input is empty, transcribing using whisper.')
         if sr_ != sr_whisper:
             dwav_ = librosa.resample(dwav, orig_sr = sr_, target_sr = sr_whisper)
         else:
@@ -233,7 +244,7 @@ async def predict(
         transcription_input = await future
         transcription_input = transcription_input[0]
 
-    logging.info(f'transcription_input, {transcription_input}')
+    logging.info(f'{uuid} transcription_input, {transcription_input}')
     
     audio = dwav
     ref_text = transcription_input
@@ -264,12 +275,50 @@ async def predict(
     results = await asyncio.gather(*futures)
     after = time.time()
     results = [r[0] for r in results]
-    results = np.concatenate(results)
+    if cross_fade_duration <= 0:
+        results = np.concatenate(results)
+    else:
+        final_wave = results[0]
+        for i in range(1, len(results)):
+            prev_wave = final_wave
+            next_wave = results[i]
+            cross_fade_samples = int(cross_fade_duration * target_sample_rate)
+            cross_fade_samples = min(cross_fade_samples, len(prev_wave), len(next_wave))
+            if cross_fade_samples <= 0:
+                final_wave = np.concatenate([prev_wave, next_wave])
+                continue
+            
+            prev_overlap = prev_wave[-cross_fade_samples:]
+            next_overlap = next_wave[:cross_fade_samples]
+            fade_out = np.linspace(1, 0, cross_fade_samples)
+            fade_in = np.linspace(0, 1, cross_fade_samples)
+            cross_faded_overlap = prev_overlap * fade_out + next_overlap * fade_in
+            new_wave = np.concatenate(
+                [prev_wave[:-cross_fade_samples], cross_faded_overlap, next_wave[cross_fade_samples:]]
+            )
+            final_wave = new_wave
+        results = final_wave
 
     if rms < target_rms:
         results = results * rms / target_rms
 
     if remove_silent_output:
+        p = Pipeline()
+        pipeline_left = (
+            p.map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000)
+        )
+        pipeline_right = (
+            p.map(malaya_speech.resample, old_samplerate = target_sample_rate, new_samplerate = 16000)
+            .map(malaya_speech.astype.float_to_int)
+            .map(malaya_speech.generator.frames, frame_duration_ms = 30, sample_rate = 16000,
+                append_ending_trail = False)
+            .foreach_map(vad)
+        )
+        pipeline_left.foreach_zip(pipeline_right).map(
+            malaya_speech.combine.without_silent, 
+            threshold_to_stop = remove_silent_output_threshold,
+            silent_trail = 1000,
+        )
         results = p(results)
         results = results['without_silent']
     
