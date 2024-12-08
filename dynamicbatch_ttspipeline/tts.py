@@ -243,8 +243,7 @@ async def predict(
         await asr_queue.put((future, dwav_))
         transcription_input = await future
         transcription_input = transcription_input[0]
-
-    logging.info(f'{uuid} transcription_input, {transcription_input}')
+        logging.info(f'{uuid} transcription_input, {transcription_input}')
     
     audio = dwav
     ref_text = transcription_input
@@ -261,6 +260,7 @@ async def predict(
     
     max_chars = int(len(ref_text.encode("utf-8")) / (audio.shape[-1] / sr_) * (25 - audio.shape[-1] / sr_))
     gen_text_batches = chunk_text(text, max_chars=max_chars)
+    logging.info(f'{uuid} gen_text_batches, {gen_text_batches}')
 
     if sr_ != target_sample_rate:
         audio = librosa.resample(audio, orig_sr = sr_, target_sr = target_sample_rate)
