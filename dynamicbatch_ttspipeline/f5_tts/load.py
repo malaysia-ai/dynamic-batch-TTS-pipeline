@@ -76,7 +76,7 @@ def load_f5_tts(
     fs = HfFileSystem()
     checkpoints = fs.glob(os.path.join(model_name, '**', '*.pt'))
     checkpoints.extend(fs.glob(os.path.join(model_name, '**', '*.pth')))
-    checkpoints = [f for f in checkpoints if '_bigvgan' not in f and 'full-checkpoint' not in f]
+    checkpoints = [f for f in checkpoints if '_bigvgan' not in f and 'full-checkpoint' not in f and 'checkpoints' not in f]
     ckpt_path = checkpoints[0].split(model_name, 1)[1][1:]
     vocab_file = os.path.join(os.path.split(ckpt_path)[0], 'vocab.txt')
     ckpt_path = hf_hub_download(model_name, ckpt_path)
