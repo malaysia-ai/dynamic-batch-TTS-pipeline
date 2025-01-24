@@ -5,9 +5,7 @@ from dynamicbatch_ttspipeline.resemble_enhance.inference import (
     merge_chunks,
 )
 from torch.nn.utils.rnn import pad_sequence
-from torch.nn.utils.parametrize import remove_parametrizations
 from torchaudio.functional import resample
-from torchaudio.transforms import MelSpectrogram
 
 import torchaudio
 import torch
@@ -37,7 +35,7 @@ def load_model():
     model.normalizer.eval()
     hp = model.hp
     sr = hp.wav_rate
-    chunk_seconds = 10.0
+    chunk_seconds = 15.0
     overlap_seconds = 1.0
     chunk_length = int(sr * chunk_seconds)
     overlap_length = int(sr * overlap_seconds)

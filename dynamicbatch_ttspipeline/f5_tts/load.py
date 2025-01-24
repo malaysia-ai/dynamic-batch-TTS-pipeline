@@ -1,6 +1,7 @@
 from huggingface_hub import snapshot_download, hf_hub_download
 from huggingface_hub import HfFileSystem
 from vocos.feature_extractors import EncodecFeatures
+from dynamicbatch_ttspipeline.bigvgan import model as bigvgan
 from vocos import Vocos
 from glob import glob
 from .cfm import CFM
@@ -8,6 +9,7 @@ from .dit import DiT
 from .utils import get_tokenizer
 import torch
 import os
+import logging
 
 target_sample_rate = 24000
 n_mel_channels = 100
@@ -72,15 +74,22 @@ def load_f5_tts(
     use_ema = True,
     device = 'cuda',
     dtype = torch.float16,
+    custom_model_path = None,
+    custom_vocab_path = None,
 ):
-    fs = HfFileSystem()
-    checkpoints = fs.glob(os.path.join(model_name, '**', '*.pt'))
-    checkpoints.extend(fs.glob(os.path.join(model_name, '**', '*.pth')))
-    checkpoints = [f for f in checkpoints if '_bigvgan' not in f and 'full-checkpoint' not in f and 'checkpoints' not in f]
-    ckpt_path = checkpoints[0].split(model_name, 1)[1][1:]
-    vocab_file = os.path.join(os.path.split(ckpt_path)[0], 'vocab.txt')
-    ckpt_path = hf_hub_download(model_name, ckpt_path)
-    vocab_file = hf_hub_download(model_name, vocab_file)
+    if custom_model_path is not None and custom_vocab_path is not None:
+        logging.info('overriding checkpoint path by using custom model path.')
+        ckpt_path = custom_model_path
+        vocab_file = custom_vocab_path
+    else:
+        fs = HfFileSystem()
+        checkpoints = fs.glob(os.path.join(model_name, '**', '*.pt'))
+        checkpoints.extend(fs.glob(os.path.join(model_name, '**', '*.pth')))
+        checkpoints = [f for f in checkpoints if '_bigvgan' not in f and 'full-checkpoint' not in f and 'checkpoints' not in f]
+        ckpt_path = checkpoints[0].split(model_name, 1)[1][1:]
+        vocab_file = os.path.join(os.path.split(ckpt_path)[0], 'vocab.txt')
+        ckpt_path = hf_hub_download(model_name, ckpt_path)
+        vocab_file = hf_hub_download(model_name, vocab_file)
     
     tokenizer = "custom"
     vocab_char_map, vocab_size = get_tokenizer(vocab_file, tokenizer)
@@ -104,20 +113,27 @@ def load_f5_tts(
     return model
 
     
-def load_vocoder(repo_id = "charactr/vocos-mel-24khz", device='cuda'):
-    config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
-    model_path = hf_hub_download(repo_id=repo_id, filename="pytorch_model.bin")
-    vocoder = Vocos.from_hparams(config_path)
-    state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
+def load_vocoder(repo_id = 'charactr/vocos-mel-24khz', device='cuda', vocoder_type='vocos'):
+    if vocoder_type == 'vocos':
+        config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
+        model_path = hf_hub_download(repo_id=repo_id, filename="pytorch_model.bin")
+        vocoder = Vocos.from_hparams(config_path)
+        state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
 
-    if isinstance(vocoder.feature_extractor, EncodecFeatures):
-        encodec_parameters = {
-            "feature_extractor.encodec." + key: value
-            for key, value in vocoder.feature_extractor.encodec.state_dict().items()
-        }
-        state_dict.update(encodec_parameters)
-    vocoder.load_state_dict(state_dict)
-    vocoder = vocoder.eval().to(device)
+        if isinstance(vocoder.feature_extractor, EncodecFeatures):
+            encodec_parameters = {
+                "feature_extractor.encodec." + key: value
+                for key, value in vocoder.feature_extractor.encodec.state_dict().items()
+            }
+            state_dict.update(encodec_parameters)
+        vocoder.load_state_dict(state_dict)
+        vocoder = vocoder.eval().to(device)
+
+    else:
+        vocoder = bigvgan.BigVGAN.from_pretrained(repo_id, use_cuda_kernel=False)
+        vocoder.remove_weight_norm()
+        vocoder = vocoder.eval().to(device)
+    
     return vocoder
     
     

@@ -17,10 +17,12 @@ Dynamic batching for TTS Pipeline.
 ### TTS
 
 1. https://github.com/SWivid/F5-TTS
+2. https://github.com/jaywalnut310/vits
 
 ### Semantic token
 
 1. https://github.com/fishaudio/fish-speech/blob/main/tools/vqgan/extract_vq.py
+2. 
 
 ## how to install
 
