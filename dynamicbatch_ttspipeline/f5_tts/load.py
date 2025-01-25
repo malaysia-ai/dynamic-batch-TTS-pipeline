@@ -16,7 +16,6 @@ n_mel_channels = 100
 hop_length = 256
 win_length = 1024
 n_fft = 1024
-mel_spec_type = "vocos"
 target_rms = 0.1
 cross_fade_duration = 0.15
 ode_method = "euler"
@@ -71,6 +70,7 @@ def load_checkpoint(model, ckpt_path, device: str, dtype=None, use_ema=True):
 
 def load_f5_tts(
     model_name = 'SWivid/F5-TTS', 
+    mel_spec_type = "vocos",
     use_ema = True,
     device = 'cuda',
     dtype = torch.float16,
