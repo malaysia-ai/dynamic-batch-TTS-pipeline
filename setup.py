@@ -10,5 +10,5 @@ setuptools.setup(
     python_requires='>=3.8',
     description='Dynamic batching for Speech Enhancement and diffusion based TTS',
     author='huseinzol05',
-    url='https://github.com/mesolitica/dynamic-batch-tts-pipeline',
+    url='https://github.com/malaysia-ai/dynamic-batch-tts-pipeline',
 )

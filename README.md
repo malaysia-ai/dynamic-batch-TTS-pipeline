@@ -29,13 +29,13 @@ Dynamic batching for TTS Pipeline.
 Using PIP with git,
 
 ```bash
-pip3 install git+https://github.com/mesolitica/dynamic-batch-TTS-pipeline
+pip3 install git+https://github.com/malaysia-ai/dynamic-batch-TTS-pipeline
 ```
 
 Or you can git clone,
 
 ```bash
-git clone https://github.com/mesolitica/dynamic-batch-TTS-pipeline && cd dynamic-batch-TTS-pipeline
+git clone https://github.com/malaysia-ai/dynamic-batch-TTS-pipeline && cd dynamic-batch-TTS-pipeline
 ```
 
 ## how to
